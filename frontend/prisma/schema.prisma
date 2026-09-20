@@ -5,26 +5,125 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
 model User {
-  id           String   @id @default(cuid())
+  id           String      @id @default(cuid())
   name         String
-  email        String   @unique
+  email        String      @unique
   passwordHash String
-   
-   sessions Session[]
-   
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  goals        Goal?
+  sessions     Session[]
+  studyPlans   StudyPlan[]
 }
+
 model Session {
   id        String   @id @default(cuid())
   userId    String
   tokenHash String   @unique
-
   createdAt DateTime @default(now())
   expiresAt DateTime
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model EmailVerification {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  codeHash     String
+  expiresAt    DateTime
+  attempts     Int      @default(0)
+  createdAt    DateTime @default(now())
+  name         String
+  passwordHash String
+
+  @@index([expiresAt])
+}
+
+model Goal {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  type               String
+  option             String?
+  subjects           String[] @default([])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  preparationEndDate DateTime
+  revisionStartDate  DateTime
+  targetDate         DateTime
+  level              String
+  studyDays          String[] @default([])
+  parallelSubjects   String[] @default([])
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studyPlan StudyPlan?
+}
+
+model StudyPlan {
+  id        String   @id @default(cuid())
+  userId    String
+  goalId    String   @unique
+  startDate DateTime
+  endDate   DateTime
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  goal  Goal        @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks StudyTask[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model StudyTask {
+  id            String    @id @default(cuid())
+  studyPlanId   String
+  title         String
+  description   String?
+  subject       String?
+  type          String    @default("LECTURE")
+  scheduledDate DateTime
+  durationMin   Int       @default(60)
+  status        String    @default("PENDING")
+  completedAt   DateTime?
+
+  // Learning progress
+  videoId        String?
+  videoUrl       String?
+  videoCompleted Boolean @default(false)
+  quizAttempts   Int     @default(0)
+  bestQuizScore  Int?
+  
+  // YouTube playlist learning
+  playlistId          String?
+  playlistTitle       String?
+  playlistSelectedAt  DateTime?
+  playlistVideoIndex  Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  studyPlan StudyPlan @relation(fields: [studyPlanId], references: [id], onDelete: Cascade)
+
+  @@index([studyPlanId])
+  @@index([scheduledDate])
+  @@index([status])
+}
+
+model YouTubePlaylistCache {
+  id          String   @id @default(cuid())
+  query       String
+  subject  String  @default("")
+  examType String  @default("")
+  playlists   Json
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([query, subject, examType])
+  @@index([expiresAt])
 }

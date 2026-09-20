@@ -3,11 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-const levels = [
-  "Beginner",
-  "Intermediate",
-  "Advanced",
-];
+const levels = ["Beginner", "Intermediate", "Advanced"];
 
 const weekDays = [
   "Monday",
@@ -19,18 +15,9 @@ const weekDays = [
   "Sunday",
 ];
 
-const jeeSubjects = [
-  "Physics",
-  "Chemistry",
-  "Mathematics",
-];
+const jeeSubjects = ["Physics", "Chemistry", "Mathematics"];
 
-const neetSubjects = [
-  "Physics",
-  "Chemistry",
-  "Botany",
-  "Zoology",
-];
+const neetSubjects = ["Physics", "Chemistry", "Botany", "Zoology"];
 
 export default function PersonalizePage() {
   const [selectedGoal, setSelectedGoal] = useState("");
@@ -41,11 +28,17 @@ export default function PersonalizePage() {
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [syllabusFile, setSyllabusFile] = useState<File | null>(null);
 
-  const [loading, setLoading] = useState(true);
+  // Subjects selected to run in parallel.
+  const [parallelSubjects, setParallelSubjects] = useState<string[]>([]);
 
-  /* =====================================================
-     LOAD GOAL FROM GOALS PAGE
-     ===================================================== */
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  /*
+   * =====================================================
+   * LOAD SELECTED GOAL
+   * =====================================================
+   */
 
   useEffect(() => {
     const savedGoal = localStorage.getItem("prepMasterGoal");
@@ -62,7 +55,6 @@ export default function PersonalizePage() {
       setSelectedOption(data.option || "");
     } catch (error) {
       console.error("Unable to read saved goal:", error);
-
       window.location.href = "/goals";
       return;
     }
@@ -70,9 +62,11 @@ export default function PersonalizePage() {
     setLoading(false);
   }, []);
 
-  /* =====================================================
-     MINIMUM PREPARATION DAYS
-     ===================================================== */
+  /*
+   * =====================================================
+   * MINIMUM DAYS
+   * =====================================================
+   */
 
   const getMinimumDays = () => {
     if (
@@ -94,25 +88,26 @@ export default function PersonalizePage() {
     return 0;
   };
 
-  /* =====================================================
-     MINIMUM TARGET DATE
-     ===================================================== */
+  /*
+   * =====================================================
+   * MINIMUM TARGET DATE
+   * =====================================================
+   */
 
   const getMinimumTargetDate = () => {
     const date = new Date();
 
     date.setHours(0, 0, 0, 0);
-
-    date.setDate(
-      date.getDate() + getMinimumDays()
-    );
+    date.setDate(date.getDate() + getMinimumDays());
 
     return date.toISOString().split("T")[0];
   };
 
-  /* =====================================================
-     TOGGLE STUDY DAY
-     ===================================================== */
+  /*
+   * =====================================================
+   * TOGGLE STUDY DAY
+   * =====================================================
+   */
 
   const toggleDay = (day: string) => {
     setSelectedDays((previous) =>
@@ -122,9 +117,11 @@ export default function PersonalizePage() {
     );
   };
 
-  /* =====================================================
-     GOAL ICON
-     ===================================================== */
+  /*
+   * =====================================================
+   * GOAL ICON
+   * =====================================================
+   */
 
   const goalIcon =
     selectedGoal === "JEE"
@@ -139,9 +136,15 @@ export default function PersonalizePage() {
               ? "📚"
               : "🎯";
 
-  /* =====================================================
-     COMPULSORY SUBJECTS
-     ===================================================== */
+  /*
+   * =====================================================
+   * REQUIRED SUBJECTS
+   * =====================================================
+   *
+   * Currently JEE / NEET subjects are fixed.
+   *
+   * Later this will be replaced by complete syllabus data.
+   */
 
   const subjects =
     selectedGoal === "JEE"
@@ -150,635 +153,691 @@ export default function PersonalizePage() {
         ? neetSubjects
         : [];
 
-  /* =====================================================
-     TARGET DATE VALIDATION
-     ===================================================== */
+  /*
+   * =====================================================
+   * PARALLEL SUBJECT LOGIC
+   * =====================================================
+   *
+   * 3–5 required subjects:
+   *     All subjects automatically run in parallel.
+   *
+   * More than 5 subjects:
+   *     User selects 2–5 subjects.
+   *
+   * 1–2 subjects:
+   *     All available subjects run in parallel.
+   */
+
+  const requiresParallelSelection = subjects.length > 5;
+
+  const effectiveParallelSubjects =
+    subjects.length > 0 && subjects.length <= 5
+      ? subjects
+      : parallelSubjects;
+
+  /*
+   * =====================================================
+   * VALIDATION
+   * =====================================================
+   */
 
   const isTargetDateValid =
     targetDate === "" ||
     targetDate >= getMinimumTargetDate();
 
-  /* =====================================================
-     FORM VALIDATION
-     ===================================================== */
+  const parallelSubjectsValid =
+    subjects.length === 0 ||
+    !requiresParallelSelection ||
+    (parallelSubjects.length >= 2 &&
+      parallelSubjects.length <= 5 &&
+      parallelSubjects.every((subject) =>
+        subjects.includes(subject)
+      ));
 
   const isComplete =
     selectedGoal !== "" &&
     level !== "" &&
     targetDate !== "" &&
     isTargetDateValid &&
-    selectedDays.length > 0;
+    selectedDays.length > 0 &&
+    parallelSubjectsValid;
 
-  /* =====================================================
-     CREATE PLAN
-     ===================================================== */
+  /*
+   * =====================================================
+   * TOGGLE PARALLEL SUBJECT
+   * =====================================================
+   */
 
-  const handleCreatePlan = () => {
-    if (!isComplete) return;
+  const toggleParallelSubject = (subject: string) => {
+    if (!requiresParallelSelection) {
+      return;
+    }
 
-    /*
-      Final 5 days are reserved for revision.
-      Therefore actual preparation ends 5 days
-      before the target date.
-    */
+    setParallelSubjects((previous) => {
+      if (previous.includes(subject)) {
+        return previous.filter((item) => item !== subject);
+      }
 
-    const target = new Date(targetDate);
+      if (previous.length >= 5) {
+        return previous;
+      }
 
-    target.setHours(0, 0, 0, 0);
-
-    const preparationEnd = new Date(target);
-
-    preparationEnd.setDate(
-      preparationEnd.getDate() - 5
-    );
-
-    const preparationEndDate =
-      preparationEnd.toISOString().split("T")[0];
-
-    const studyPreferences = {
-      goal: selectedGoal,
-      option: selectedOption,
-
-      level,
-
-      targetDate,
-
-      preparationEndDate,
-
-      studyDays: selectedDays,
-
-      syllabusFileName:
-        syllabusFile?.name || null,
-
-      planningRule: {
-        minimumPreparationDays: getMinimumDays(),
-        preparationCompletionDaysBeforeTarget: 5,
-        revisionDays: 5,
-      },
-    };
-
-    localStorage.setItem(
-      "prepMasterPreferences",
-      JSON.stringify(studyPreferences)
-    );
-
-    alert(
-      "Your study preferences have been saved successfully!"
-    );
+      return [...previous, subject];
+    });
   };
 
-  /* =====================================================
-     LOADING
-     ===================================================== */
+  /*
+   * =====================================================
+   * CREATE STUDY PLAN
+   * =====================================================
+   */
+
+  const handleCreatePlan = async () => {
+    if (!isComplete || saving) {
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      /*
+       * Target date
+       */
+
+      const target = new Date(
+        `${targetDate}T00:00:00.000Z`
+      );
+
+      /*
+       * Preparation ends 5 days before target date.
+       */
+
+      const preparationEnd = new Date(target);
+
+      preparationEnd.setUTCDate(
+        preparationEnd.getUTCDate() - 5
+      );
+
+      const preparationEndDate =
+        preparationEnd.toISOString().split("T")[0];
+
+      /*
+       * Revision starts after preparation ends.
+       */
+
+      const revisionStart = new Date(preparationEnd);
+
+      revisionStart.setUTCDate(
+        revisionStart.getUTCDate() + 1
+      );
+
+      const revisionStartDate =
+        revisionStart.toISOString().split("T")[0];
+
+      /*
+       * Required subjects.
+       */
+
+      const selectedSubjects =
+        selectedGoal === "JEE"
+          ? jeeSubjects
+          : selectedGoal === "NEET"
+            ? neetSubjects
+            : [];
+
+      /*
+       * Final parallel subjects.
+       *
+       * If there are 5 or fewer required subjects,
+       * all subjects automatically run in parallel.
+       *
+       * If there are more than 5,
+       * use the user's selected subjects.
+       */
+
+      const finalParallelSubjects =
+        selectedSubjects.length > 0 &&
+        selectedSubjects.length <= 5
+          ? selectedSubjects
+          : parallelSubjects;
+
+      /*
+       * Data sent to Goal API.
+       */
+
+      const data = {
+        goal: selectedGoal,
+        option: selectedOption || null,
+
+        // All required subjects.
+        subjects: selectedSubjects,
+
+        // Subjects the scheduler should run in parallel.
+        parallelSubjects: finalParallelSubjects,
+
+        level,
+        targetDate,
+        preparationEndDate,
+        revisionStartDate,
+        studyDays: selectedDays,
+
+        /*
+         * Currently only the filename is stored.
+         * Actual syllabus upload will be implemented later.
+         */
+
+        syllabusFileName:
+          syllabusFile?.name || null,
+      };
+
+      /*
+       * Save local copy.
+       */
+
+      localStorage.setItem(
+        "prepMasterPreferences",
+        JSON.stringify(data)
+      );
+
+      /*
+       * =================================================
+       * STEP 1: SAVE GOAL
+       * =================================================
+       */
+
+      const goalResponse = await fetch("/api/goals", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      const goalResult = await goalResponse.json();
+
+      if (!goalResponse.ok) {
+        console.error(
+          "Goal save failed:",
+          goalResult
+        );
+
+        alert(
+          goalResult.message ||
+            "Unable to save your study preferences."
+        );
+
+        setSaving(false);
+        return;
+      }
+
+      /*
+       * =================================================
+       * STEP 2: GENERATE STUDY PLAN
+       * =================================================
+       *
+       * Goal is now saved.
+       * The Study Plan API reads that Goal from the database
+       * and creates the StudyPlan + StudyTasks.
+       */
+
+      const studyPlanResponse = await fetch(
+        "/api/study-plan",
+        {
+          method: "POST",
+        }
+      );
+
+      const studyPlanResult =
+        await studyPlanResponse.json();
+
+      if (!studyPlanResponse.ok) {
+        console.error(
+          "Study plan generation failed:",
+          studyPlanResult
+        );
+
+        alert(
+          studyPlanResult.message ||
+            "Your preferences were saved, but the study plan could not be generated."
+        );
+
+        setSaving(false);
+        return;
+      }
+
+      /*
+       * =================================================
+       * STEP 3: SUCCESS
+       * =================================================
+       */
+
+      console.log(
+        "Study plan created successfully:",
+        studyPlanResult
+      );
+
+      alert(
+        "Your study plan has been created successfully!"
+      );
+
+      /*
+       * Open dashboard only after both:
+       *
+       * 1. Goal saved
+       * 2. Study plan generated
+       */
+
+      window.location.href = "/dashboard";
+    } catch (error) {
+      console.error(
+        "Unable to create study plan:",
+        error
+      );
+
+      alert(
+        "Something went wrong while creating your study plan."
+      );
+
+      setSaving(false);
+    }
+  };
+
+  /*
+   * =====================================================
+   * LOADING SCREEN
+   * =====================================================
+   */
 
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
-
         <div className="text-center">
-
           <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-700 border-t-cyan-400" />
 
           <p className="mt-4 text-sm text-slate-400">
             Loading your preparation...
           </p>
-
         </div>
-
       </main>
     );
   }
 
+  /*
+   * =====================================================
+   * MAIN PAGE
+   * =====================================================
+   */
+
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-slate-950 text-white">
+    <main className="min-h-screen bg-[#050816] px-4 py-8 text-white sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-5xl">
 
-      {/* =====================================================
-          BACKGROUND
-          ===================================================== */}
+        {/* HEADER */}
 
-      <div className="pointer-events-none fixed -left-40 -top-40 h-96 w-96 rounded-full bg-orange-500/10 blur-3xl" />
+        <div className="mb-8 flex items-center justify-between">
+          <Link
+            href="/goals"
+            className="text-sm text-slate-400 transition hover:text-white"
+          >
+            ← Change Goal
+          </Link>
 
-      <div className="pointer-events-none fixed -right-40 top-1/3 h-96 w-96 rounded-full bg-green-500/10 blur-3xl" />
+          <div className="text-sm font-semibold text-cyan-400">
+            PrepMaster
+          </div>
+        </div>
 
-      <div className="pointer-events-none fixed bottom-0 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-blue-500/10 blur-3xl" />
+        {/* TITLE */}
 
-      {/* =====================================================
-          NAVBAR
-          ===================================================== */}
-
-      <nav className="relative z-10 flex items-center justify-between px-4 py-5 sm:px-8 md:px-12">
-
-        <Link
-          href="/"
-          className="text-2xl font-black tracking-tight transition duration-300 hover:scale-105"
-        >
-          <span className="text-orange-400">
-            Prep
-          </span>
-
-          <span className="text-blue-400">
-            Master
-          </span>
-        </Link>
-
-        <Link
-          href="/goals"
-          className="rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-2 text-sm font-semibold text-slate-300 backdrop-blur transition hover:border-slate-500 hover:bg-slate-800 hover:text-white"
-        >
-          ← Change Goal
-        </Link>
-
-      </nav>
-
-      {/* =====================================================
-          MAIN
-          ===================================================== */}
-
-      <section className="relative z-10 mx-auto w-full max-w-5xl px-4 pb-16 pt-6 sm:px-6 md:pt-10">
-
-        {/* =====================================================
-            HEADING
-            ===================================================== */}
-
-        <div className="mx-auto max-w-3xl text-center">
-
-          <div className="mb-5 inline-flex max-w-full items-center gap-2 rounded-full border border-slate-700 bg-slate-900/70 px-4 py-2 text-xs text-slate-300 backdrop-blur sm:text-sm">
-
-            ✨ Personalize your preparation
-
+        <div className="mb-10 text-center">
+          <div className="mb-4 text-5xl">
+            {goalIcon}
           </div>
 
-          <h1 className="text-4xl font-black tracking-tight sm:text-5xl md:text-6xl">
-            <span className="bg-gradient-to-r from-orange-400 via-white to-green-400 bg-clip-text text-transparent">
-             Build Your Study Plan
-            </span>
-
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            Personalize Your Preparation
           </h1>
 
-          <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base md:text-lg">
-
-            Tell PrepMaster a little about your preparation and
-            we&apos;ll organize your study journey around your goal.
-
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">
+            Tell PrepMaster a few things about your preparation.
+            We&apos;ll use them to build your personalized study plan.
           </p>
 
-        </div>
-
-        {/* =====================================================
-            SELECTED GOAL
-            ===================================================== */}
-
-        <div className="mt-10 rounded-3xl border border-slate-800 bg-slate-900/75 p-5 shadow-2xl backdrop-blur-xl sm:p-7">
-
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-
-            <div>
-
-              <p className="text-xs uppercase tracking-wider text-slate-500">
-                Your Selected Goal
-              </p>
-
-              <div className="mt-2 flex flex-wrap items-center gap-3">
-
-                <span className="text-3xl">
-                  {goalIcon}
-                </span>
-
-                <h2 className="text-2xl font-bold">
-                  {selectedGoal}
-                </h2>
-
-                {selectedOption && (
-                  <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-300">
-                    {selectedOption}
-                  </span>
-                )}
-
-              </div>
-
-            </div>
-
-            <Link
-              href="/goals"
-              className="text-sm font-semibold text-cyan-400 transition hover:text-cyan-300"
-            >
-              Change Goal →
-            </Link>
-
+          <div className="mt-4 inline-flex rounded-full border border-slate-800 bg-slate-900/70 px-4 py-2 text-sm text-slate-300">
+            Goal:
+            <span className="ml-1 font-semibold text-cyan-400">
+              {selectedOption
+                ? `${selectedGoal} — ${selectedOption}`
+                : selectedGoal}
+            </span>
           </div>
-
-          {/* =====================================================
-              JEE / NEET SUBJECTS
-              ===================================================== */}
-
-          {subjects.length > 0 && (
-            <div className="mt-6 border-t border-slate-800 pt-5">
-
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-
-                <div>
-
-                  <h3 className="font-semibold">
-                    Compulsory Subjects
-                  </h3>
-
-                  <p className="mt-1 text-xs text-slate-500">
-                    These subjects are automatically included in your plan.
-                  </p>
-
-                </div>
-
-                <span className="w-fit rounded-full bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-400">
-                  Automatically Included
-                </span>
-
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-
-                {subjects.map((subject) => (
-                  <span
-                    key={subject}
-                    className="rounded-xl border border-green-500/20 bg-green-500/5 px-4 py-2 text-sm text-green-300"
-                  >
-                    ✓ {subject}
-                  </span>
-                ))}
-
-              </div>
-
-            </div>
-          )}
-
         </div>
 
-        {/* =====================================================
-            PERSONALIZATION
-            ===================================================== */}
+        {/* MAIN CARD */}
 
-        <div className="mt-6 space-y-6">
+        <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 shadow-2xl backdrop-blur-xl sm:p-8">
 
-          {/* =====================================================
-              STEP 1 - CURRENT LEVEL
-              ===================================================== */}
+          {/* LEVEL */}
 
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/75 p-5 shadow-xl backdrop-blur-xl sm:p-7">
-
-            <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
-              Step 1
-            </p>
-
-            <h2 className="mt-2 text-xl font-bold sm:text-2xl">
-              What is your current preparation level?
+          <section>
+            <h2 className="text-lg font-semibold">
+              1. What is your current level?
             </h2>
 
-            <p className="mt-2 text-sm text-slate-400">
-              This helps PrepMaster decide how your preparation should begin.
+            <p className="mt-1 text-sm text-slate-400">
+              This helps PrepMaster adjust the difficulty and pace.
             </p>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
-
               {levels.map((item) => {
-
-                const selected =
-                  level === item;
+                const active = level === item;
 
                 return (
                   <button
-                    type="button"
                     key={item}
+                    type="button"
                     onClick={() => setLevel(item)}
-                    className={`rounded-xl border px-4 py-4 text-sm font-semibold transition-all duration-300 ${
-                      selected
-                        ? "border-cyan-400 bg-cyan-400/10 text-cyan-300 shadow-lg"
-                        : "border-slate-700 bg-slate-950/50 text-slate-300 hover:border-slate-500 hover:bg-slate-800"
+                    className={`rounded-2xl border px-4 py-4 text-left transition ${
+                      active
+                        ? "border-cyan-400 bg-cyan-400/10 text-cyan-300"
+                        : "border-slate-700 bg-slate-950/50 text-slate-300 hover:border-slate-500"
                     }`}
                   >
+                    <div className="font-medium">
+                      {item}
+                    </div>
 
-                    <span className="mr-2">
-                      {selected ? "✓" : "○"}
-                    </span>
-
-                    {item}
-
+                    <div className="mt-1 text-xs text-slate-500">
+                      {item === "Beginner"
+                        ? "Starting from basics"
+                        : item === "Intermediate"
+                          ? "Know the fundamentals"
+                          : "Strong foundation"}
+                    </div>
                   </button>
                 );
               })}
-
             </div>
+          </section>
 
-          </div>
+          {/* TARGET DATE */}
 
-          {/* =====================================================
-              STEP 2 - TARGET DATE
-              ===================================================== */}
-
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/75 p-5 shadow-xl backdrop-blur-xl sm:p-7">
-
-            <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
-              Step 2
-            </p>
-
-            <h2 className="mt-2 text-xl font-bold sm:text-2xl">
-              When is your target date?
+          <section className="mt-10">
+            <h2 className="text-lg font-semibold">
+              2. When is your target date?
             </h2>
 
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-              PrepMaster will calculate your preparation timeline
-              from this date and make sure there is enough time
-              to complete your preparation.
+            <p className="mt-1 text-sm text-slate-400">
+              PrepMaster automatically calculates your daily study
+              workload from this date.
             </p>
 
-            <div className="mt-5">
-
-              <label className="mb-2 block text-sm font-medium text-slate-300">
-                Target / Exam Date
-              </label>
-
+            <div className="mt-5 max-w-md">
               <input
                 type="date"
                 value={targetDate}
                 min={getMinimumTargetDate()}
-                onChange={(e) =>
-                  setTargetDate(e.target.value)
+                onChange={(event) =>
+                  setTargetDate(event.target.value)
                 }
-                className={`w-full max-w-sm rounded-xl border bg-slate-950/70 px-4 py-3.5 text-white outline-none transition focus:ring-2 focus:ring-cyan-400/10 ${
-                  targetDate !== "" &&
-                  !isTargetDateValid
-                    ? "border-red-500 focus:border-red-500"
-                    : "border-slate-700 focus:border-cyan-400"
-                }`}
+                className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-4 text-white outline-none transition focus:border-cyan-400"
               />
 
-            </div>
+              <p className="mt-2 text-xs text-slate-500">
+                Minimum target date:{" "}
+                {getMinimumTargetDate()}
+              </p>
 
-            {/* =====================================================
-                MINIMUM DATE INFORMATION
-                ===================================================== */}
-
-            <div className="mt-5 rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-4">
-
-              <div className="flex gap-3">
-
-                <span className="text-xl">
-                  📅
-                </span>
-
-                <div>
-
-                  <h3 className="text-sm font-bold text-cyan-300">
-                    Minimum Preparation Window
-                  </h3>
-
-                  <p className="mt-1 text-xs leading-5 text-slate-400">
-
-                    For{" "}
-
-                    <span className="font-semibold text-slate-300">
-                      {selectedGoal}
-                    </span>
-                    , your target date must be at least{" "}
-
-                    <span className="font-semibold text-slate-300">
-                      {getMinimumDays()} days
-                    </span>{" "}
-
-                    from today.
-
-                  </p>
-
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-
-                    Earliest allowed target date:{" "}
-
-                    <span className="font-semibold text-slate-400">
-                      {getMinimumTargetDate()}
-                    </span>
-
-                  </p>
-
-                </div>
-
-              </div>
-
-            </div>
-
-            {/* =====================================================
-                PREPARATION + REVISION RULE
-                ===================================================== */}
-
-            <div className="mt-4 rounded-2xl border border-orange-400/20 bg-orange-400/5 p-4">
-
-              <div className="flex gap-3">
-
-                <span className="text-xl">
-                  🔄
-                </span>
-
-                <div>
-
-                  <h3 className="text-sm font-bold text-orange-300">
-                    PrepMaster Planning Rule
-                  </h3>
-
-                  <p className="mt-1 text-xs leading-5 text-slate-400">
-
-                    Your syllabus and preparation will be completed
-                    <span className="font-semibold text-slate-300">
-                      {" "}5 days before{" "}
-                    </span>
-                    the target date.
-
-                    The final{" "}
-
-                    <span className="font-semibold text-slate-300">
-                      5 days
-                    </span>{" "}
-
-                    will be reserved for revision.
-
-                  </p>
-
-                </div>
-
-              </div>
-
-            </div>
-
-            {/* INVALID DATE WARNING */}
-
-            {targetDate !== "" &&
-              !isTargetDateValid && (
-                <p className="mt-3 text-sm font-medium text-red-400">
-                  ⚠️ Please select a target date at least{" "}
+              {!isTargetDateValid && (
+                <p className="mt-2 text-sm text-red-400">
+                  Please select a date at least{" "}
                   {getMinimumDays()} days from today.
                 </p>
               )}
-
-          </div>
-
-          {/* =====================================================
-              STEP 3 - STUDY DAYS
-              ===================================================== */}
-
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/75 p-5 shadow-xl backdrop-blur-xl sm:p-7">
-
-            <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
-              Step 3
-            </p>
-
-            <h2 className="mt-2 text-xl font-bold sm:text-2xl">
-              Which days can you study?
-            </h2>
-
-            <p className="mt-2 text-sm text-slate-400">
-              Select all the days you are normally available for preparation.
-            </p>
-
-            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-
-              {weekDays.map((day) => {
-
-                const selected =
-                  selectedDays.includes(day);
-
-                return (
-                  <button
-                    type="button"
-                    key={day}
-                    onClick={() =>
-                      toggleDay(day)
-                    }
-                    className={`rounded-xl border px-3 py-3 text-sm font-medium transition-all duration-300 ${
-                      selected
-                        ? "border-green-400 bg-green-400/10 text-green-300 shadow-lg"
-                        : "border-slate-700 bg-slate-950/50 text-slate-400 hover:border-slate-500 hover:bg-slate-800"
-                    }`}
-                  >
-
-                    {selected ? "✓ " : ""}
-
-                    {day.slice(0, 3)}
-
-                  </button>
-                );
-              })}
-
             </div>
+          </section>
 
-            {selectedDays.length > 0 && (
-              <p className="mt-4 text-xs text-slate-500">
-                {selectedDays.length} day
-                {selectedDays.length > 1
-                  ? "s"
-                  : ""}{" "}
-                selected
-              </p>
-            )}
+          {/* JEE / NEET SUBJECTS */}
 
-          </div>
-
-          {/* =====================================================
-              COLLEGE SYLLABUS
-              ===================================================== */}
-
-          {selectedGoal === "College Exam" && (
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/75 p-5 shadow-xl backdrop-blur-xl sm:p-7">
-
-              <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
-                Step 4
-              </p>
-
-              <h2 className="mt-2 text-xl font-bold sm:text-2xl">
-                Upload your syllabus
+          {subjects.length > 0 && (
+            <section className="mt-10">
+              <h2 className="text-lg font-semibold">
+                3. Your subjects
               </h2>
 
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-
-                Upload your college syllabus so PrepMaster
-                can understand your subjects and organize
-                your preparation.
-
+              <p className="mt-1 text-sm text-slate-400">
+                These subjects are automatically included for your
+                selected exam.
               </p>
 
-              <label className="mt-5 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 px-5 py-10 text-center transition hover:border-cyan-400/50 hover:bg-slate-900">
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                {subjects.map((subject) => {
+                  const isParallel =
+                    effectiveParallelSubjects.includes(subject);
 
-                <span className="text-4xl">
+                  const canSelect =
+                    requiresParallelSelection;
+
+                  return (
+                    <button
+                      key={subject}
+                      type="button"
+                      disabled={!canSelect}
+                      onClick={() =>
+                        toggleParallelSubject(subject)
+                      }
+                      className={`rounded-2xl border px-4 py-4 text-left transition ${
+                        isParallel
+                          ? "border-cyan-400 bg-cyan-400/10 text-cyan-300"
+                          : canSelect
+                            ? "border-slate-700 bg-slate-950/50 text-slate-300 hover:border-slate-500"
+                            : "border-slate-700 bg-slate-950/50 text-slate-200"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">
+                          {subject}
+                        </span>
+
+                        <span className="text-xs">
+                          {isParallel ? "✓ Parallel" : ""}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {subjects.length <= 5 ? (
+                <p className="mt-3 text-xs text-cyan-400">
+                  All {subjects.length} subjects will run in
+                  parallel.
+                </p>
+              ) : (
+                <>
+                  <div className="mt-4 flex items-center justify-between">
+                    <p className="text-xs text-slate-500">
+                      Select 2–5 subjects to study in parallel.
+                    </p>
+
+                    <p className="text-xs font-semibold text-cyan-400">
+                      Selected: {parallelSubjects.length} / 5
+                    </p>
+                  </div>
+
+                  {parallelSubjects.length < 2 && (
+                    <p className="mt-3 text-xs text-amber-400">
+                      Select at least 2 subjects.
+                    </p>
+                  )}
+
+                  {parallelSubjects.length >= 5 && (
+                    <p className="mt-3 text-xs text-slate-500">
+                      Maximum 5 parallel subjects allowed.
+                    </p>
+                  )}
+                </>
+              )}
+            </section>
+          )}
+
+          {/* COLLEGE SYLLABUS */}
+
+          {selectedGoal === "College Exam" && (
+            <section className="mt-10">
+              <h2 className="text-lg font-semibold">
+                3. Upload your syllabus
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-400">
+                Upload your syllabus so PrepMaster can use it to
+                understand your topics.
+              </p>
+
+              <label className="mt-5 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 px-6 py-10 text-center transition hover:border-cyan-400">
+                <div className="text-3xl">
                   📄
-                </span>
+                </div>
 
-                <span className="mt-3 max-w-full break-all font-semibold">
-
+                <p className="mt-3 text-sm font-medium text-slate-200">
                   {syllabusFile
                     ? syllabusFile.name
-                    : "Click to upload syllabus"}
+                    : "Choose your syllabus file"}
+                </p>
 
-                </span>
-
-                <span className="mt-2 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-slate-500">
                   PDF, DOC or DOCX
-                </span>
+                </p>
 
                 <input
                   type="file"
                   accept=".pdf,.doc,.docx"
                   className="hidden"
-                  onChange={(e) =>
-                    setSyllabusFile(
-                      e.target.files?.[0] ||
-                        null
-                    )
-                  }
+                  onChange={(event) => {
+                    const file =
+                      event.target.files?.[0] || null;
+
+                    setSyllabusFile(file);
+                  }}
                 />
-
               </label>
-
-              {syllabusFile && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setSyllabusFile(null)
-                  }
-                  className="mt-3 text-xs font-semibold text-red-400 transition hover:text-red-300"
-                >
-                  Remove file
-                </button>
-              )}
-
-            </div>
+            </section>
           )}
 
-          {/* =====================================================
-              CREATE PLAN
-              ===================================================== */}
+          {/* STUDY DAYS */}
 
-          <div className="pt-2">
+          <section className="mt-10">
+            <h2 className="text-lg font-semibold">
+              {subjects.length > 0 ||
+              selectedGoal === "College Exam"
+                ? "4"
+                : "3"}
+              . Which days can you study?
+            </h2>
 
+            <p className="mt-1 text-sm text-slate-400">
+              Select the days you normally want to study.
+            </p>
+
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+              {weekDays.map((day) => {
+                const active = selectedDays.includes(day);
+
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => toggleDay(day)}
+                    className={`rounded-2xl border px-3 py-4 text-sm font-medium transition ${
+                      active
+                        ? "border-cyan-400 bg-cyan-400/10 text-cyan-300"
+                        : "border-slate-700 bg-slate-950/50 text-slate-400 hover:border-slate-500 hover:text-slate-200"
+                    }`}
+                  >
+                    <div className="text-xs">
+                      {day.slice(0, 3)}
+                    </div>
+
+                    <div className="mt-2">
+                      {active ? "✓" : "○"}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {selectedDays.length === 0 && (
+              <p className="mt-3 text-xs text-amber-400">
+                Select at least four study day.
+              </p>
+            )}
+          </section>
+
+          {/* PLANNING RULE */}
+
+          <section className="mt-10 rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-5">
+            <div className="flex gap-4">
+              <div className="text-2xl">
+                🧠
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-slate-200">
+                  How PrepMaster plans your preparation
+                </h3>
+
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  Your preparation content will be completed
+                  <span className="font-medium text-cyan-400">
+                    {" "}
+                    5 days before your target date
+                  </span>
+                  . The final 5 days are reserved for revision.
+                </p>
+
+                <p className="mt-2 text-xs text-slate-500">
+                  Daily study time is calculated automatically.
+                  You don&apos;t need to enter study hours or a
+                  preferred study time.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* CREATE PLAN */}
+
+          <div className="mt-10">
             <button
               type="button"
-              disabled={!isComplete}
               onClick={handleCreatePlan}
-              className={`w-full rounded-2xl px-6 py-4 text-base font-black transition-all duration-300 sm:py-5 sm:text-lg ${
-                isComplete
-                  ? "bg-gradient-to-r from-orange-500 via-white to-green-500 text-slate-950 shadow-xl hover:-translate-y-1 hover:shadow-orange-500/20"
+              disabled={!isComplete || saving}
+              className={`w-full rounded-2xl px-6 py-4 text-sm font-semibold transition ${
+                isComplete && !saving
+                  ? "bg-gradient-to-r from-cyan-500 to-indigo-500 text-white shadow-lg shadow-cyan-500/20 hover:scale-[1.01]"
                   : "cursor-not-allowed bg-slate-800 text-slate-500"
               }`}
             >
-              Create My Study Plan →
+              {saving
+                ? "Creating Your Study Plan..."
+                : "Create My Study Plan →"}
             </button>
 
-            {!isComplete && (
-              <p className="mt-3 text-center text-xs text-slate-600">
-                Complete all required preferences to continue.
+            {!isComplete && !saving && (
+              <p className="mt-3 text-center text-xs text-slate-500">
+                Complete all required fields to continue.
               </p>
             )}
-
           </div>
-
         </div>
 
-      </section>
+        {/* FOOTER */}
 
+        <div className="py-8 text-center">
+          <p className="text-xs text-slate-600">
+            PrepMaster • Your AI-powered exam preparation
+          </p>
+        </div>
+      </div>
     </main>
   );
 }

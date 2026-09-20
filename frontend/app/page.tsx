@@ -169,7 +169,7 @@ export default function Home() {
         <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row">
 
           <Link
-            href="/goals"
+            href="/signup"
             className="group rounded-2xl bg-blue-600 px-8 py-4 font-bold shadow-xl shadow-blue-600/20 transition duration-300 hover:-translate-y-1 hover:bg-blue-500"
           >
             Start Your Preparation
@@ -327,7 +327,7 @@ export default function Home() {
           </p>
 
           <Link
-            href="/goals"
+            href="/signup"
             className="mt-8 inline-flex rounded-2xl bg-blue-600 px-8 py-4 font-bold shadow-xl shadow-blue-600/20 transition duration-300 hover:-translate-y-1 hover:bg-blue-500"
           >
             Start Your Preparation →
